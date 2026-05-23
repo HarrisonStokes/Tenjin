@@ -1,3 +1,5 @@
+import platform
+import os
 import logging
 import shutil
 import subprocess
@@ -53,23 +55,20 @@ def run_cmd(args) -> None:
 
     state.save(cfg.target, cfg.config)
 
-def _configure(runner: DockerRunner, cfg: BuildConfig) -> None:
-    logger.info(f"Configuring {cfg.target}/{cfg.config}...")
+def _configure(runner, cfg):
+    # Dynamically pick the generator based on target and host
+    is_mac = platform.system() == "Darwin"
+    generator = ["-G", "Xcode"] if (cfg.target == "ios" and is_mac) else ["-G", "Ninja"]
 
-    # Use Xcode generator on macOS, otherwise use Ninja
-    import platform
-    if platform.system() == "Darwin" and cfg.target == "ios":
-        generator = ["-G", "Xcode"]
-    else:
-        generator = ["-G", "Ninja"]
+    # If native on macOS, ensure CMAKE_PREFIX_PATH is set
+    env = {}
+    if is_mac and cfg.target == "ios":
+        env["CMAKE_PREFIX_PATH"] = os.environ.get("CMAKE_PREFIX_PATH", "")
 
     runner.run([
-        "cmake",
-        "-S", ".",
-        "-B", cfg.build_dir,
-        *generator,
-        *cfg.cmake_flags,
-    ])
+        "cmake", "-S", ".", "-B", cfg.build_dir,
+        *generator, *cfg.cmake_flags
+    ], env=env)
 
 def _docker_image_changed(image: str, build_dir_abs) -> bool:
     """True if the Docker image ID differs from the one stamped in build_dir."""
