@@ -22,5 +22,7 @@ jobs:
           target: 'ios'
           
       - name: Build iOS
+        env:
+          CMAKE_PREFIX_PATH: ${{ steps.install-qt.outputs.qt-path }}
         run: |
           ./tools/tool build --target ios
