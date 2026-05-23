@@ -53,15 +53,15 @@ def run_cmd(args) -> None:
 
     state.save(cfg.target, cfg.config)
 
-
 def _configure(runner: DockerRunner, cfg: BuildConfig) -> None:
     logger.info(f"Configuring {cfg.target}/{cfg.config}...")
 
-    # iOS needs the Xcode generator; everything else uses Ninja for speed.
-    # Windows uses Ninja too — Qt's qt.toolchain.cmake handles the cross-compile
-    # setup so we don't need the qt-cmake wrapper from the target SDK (which
-    # doesn't run on Linux anyway).
-    generator = ["-G", "Xcode"] if cfg.target == "ios" else ["-G", "Ninja"]
+    # Use Xcode generator on macOS, otherwise use Ninja
+    import platform
+    if platform.system() == "Darwin" and cfg.target == "ios":
+        generator = ["-G", "Xcode"]
+    else:
+        generator = ["-G", "Ninja"]
 
     runner.run([
         "cmake",
@@ -70,7 +70,6 @@ def _configure(runner: DockerRunner, cfg: BuildConfig) -> None:
         *generator,
         *cfg.cmake_flags,
     ])
-
 
 def _docker_image_changed(image: str, build_dir_abs) -> bool:
     """True if the Docker image ID differs from the one stamped in build_dir."""
