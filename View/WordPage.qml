@@ -1,0 +1,309 @@
+pragma ComponentBehavior: Bound
+
+import TenjinView
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQml
+import QtQml.Models
+
+Item {
+    id: wordPageRoot
+
+    Loader {
+        anchors.fill: parent
+        sourceComponent: appVM.wordVM.selectedWordId >= 0 ? wordDetail : emptyState
+    }
+
+    // ── Empty state ──────────────────────────────────────────────
+    Component {
+        id: emptyState
+        Item {
+            Column {
+                anchors.centerIn: parent
+                spacing: 12
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "📖"; font.pixelSize: 52
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Select a word from the sidebar"
+                    color: Platform.textMuted; font.pixelSize: Platform.fontLarge
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "or click + Word to add a new one"
+                    color: Platform.textMuted; font.pixelSize: Platform.fontBase
+                }
+            }
+        }
+    }
+
+    // ── Word detail ──────────────────────────────────────────────
+    Component {
+        id: wordDetail
+        Item {
+            clip: true
+            ColumnLayout {
+                anchors { fill: parent; margins: Platform.pagePadding }
+                spacing: 16
+
+            // Header row
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                Text {
+                    text: appVM.wordVM.selectedWord
+                    color: Platform.textPrimary
+                    font.pixelSize: Platform.fontTitle
+                    font.bold: true
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+
+                // Edit / Action controls
+                Row {
+                    spacing: 8
+                    ActionButton {
+                        visible: !appVM.wordVM.editMode
+                        text: "Edit"
+                        variant: "neutral"
+                        onClicked: appVM.wordVM.beginEdit()
+                    }
+                    ActionButton {
+                        visible: appVM.wordVM.editMode
+                        text: "Save"
+                        variant: "success"
+                        onClicked: appVM.wordVM.saveEdit()
+                    }
+                    ActionButton {
+                        visible: appVM.wordVM.editMode
+                        text: "Cancel"
+                        variant: "neutral"
+                        onClicked: appVM.wordVM.cancelEdit()
+                    }
+                    ActionButton {
+                        visible: appVM.wordVM.editMode
+                        text: "Delete Word"
+                        variant: "danger"
+                        onClicked: deleteWordConfirm.open()
+                    }
+                }
+            }
+
+            // Tags area
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text { text: "Tags:"; color: Platform.textMuted; font.pixelSize: Platform.fontBase }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Repeater {
+                        // Reactive: refreshes automatically when tags change.
+                        model: appVM.wordVM.wordTags
+                        delegate: TagChip {
+                            required property var modelData
+                            tagName: modelData.name
+                            tagId: modelData.id
+                            editable: appVM.wordVM.editMode
+                            onRemoveClicked: (tid) => appVM.wordVM.detachTag(appVM.wordVM.selectedWordId, tid)
+                        }
+                    }
+
+                    // "+ tag" button → popup to type a new tag (create+attach)
+                    // or pick an existing one.
+                    Rectangle {
+                        id: addTagButton
+                        visible: appVM.wordVM.editMode
+                        width: addTagText.implicitWidth + 24
+                        height: Platform.isMobile ? 36 : 24
+                        radius: height / 2
+                        color: addTagArea.containsMouse ? Platform.surfaceAlt : Platform.surface
+                        border.color: Platform.border
+                        border.width: 1
+
+                        Text {
+                            id: addTagText
+                            anchors.centerIn: parent
+                            text: "+ tag"
+                            font.pixelSize: Platform.fontBase - 2
+                            color: Platform.textMuted
+                        }
+                        MouseArea {
+                            id: addTagArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                tagPopup.allTags = appVM.wordVM.getAllTags()
+                                newTagField.text = ""
+                                tagPopup.open()
+                                newTagField.forceActiveFocus()
+                            }
+                        }
+
+                        Popup {
+                            id: tagPopup
+                            y: addTagButton.height + 4
+                            width: 240
+                            padding: 8
+                            property var allTags: []
+
+                            background: Rectangle {
+                                color: Platform.surface
+                                radius: Platform.radius
+                                border.color: Platform.border
+                                border.width: 1
+                            }
+
+                            contentItem: ColumnLayout {
+                                spacing: 6
+
+                                // New-tag entry: Enter creates (if needed) + attaches.
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: Platform.touchTarget
+                                    color: Platform.bg
+                                    radius: Platform.radius - 2
+                                    border.color: newTagField.activeFocus ? Platform.accent : Platform.border
+                                    border.width: newTagField.activeFocus ? 2 : 1
+
+                                    TextField {
+                                        id: newTagField
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        placeholderText: "New tag name\u2026 (Enter)"
+                                        placeholderTextColor: Platform.textMuted
+                                        color: Platform.textPrimary
+                                        font.pixelSize: Platform.fontBase
+                                        background: null
+                                        onAccepted: {
+                                            if (text.trim().length > 0
+                                                && appVM.wordVM.createAndAttachTag(text)) {
+                                                text = ""
+                                                tagPopup.close()
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Platform.border; opacity: 0.5 }
+
+                                Text {
+                                    visible: tagPopup.allTags.length > 0
+                                    text: "Existing tags"
+                                    color: Platform.textMuted
+                                    font.pixelSize: Platform.fontBase - 3
+                                }
+
+                                ListView {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Math.min(contentHeight, 200)
+                                    clip: true
+                                    model: tagPopup.allTags
+
+                                    delegate: ItemDelegate {
+                                        required property var modelData
+                                        width: ListView.view.width
+                                        height: Platform.touchTarget * 0.85
+                                        background: Rectangle {
+                                            color: hovered ? Platform.surfaceAlt : "transparent"
+                                            radius: Platform.radius - 2
+                                        }
+                                        contentItem: Text {
+                                            text: modelData.name ?? ""
+                                            color: Platform.textPrimary
+                                            font.pixelSize: Platform.fontBase
+                                            verticalAlignment: Text.AlignVCenter
+                                            leftPadding: 6
+                                        }
+                                        onClicked: {
+                                            appVM.wordVM.attachTag(appVM.wordVM.selectedWordId, modelData.id)
+                                            tagPopup.close()
+                                        }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: parent.count === 0
+                                        text: "No tags yet \u2014 type above to create one"
+                                        color: Platform.textMuted
+                                        font.pixelSize: Platform.fontBase - 2
+                                        width: parent.width - 12
+                                        horizontalAlignment: Text.AlignHCenter
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Platform.border }
+
+            // ── Content blocks (row/column grid) ─────────────────
+            GridContentView {
+                id: blockGrid
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                editMode: appVM.wordVM.editMode
+            }
+
+            // ── Add content buttons ──────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                visible: appVM.wordVM.editMode
+                spacing: 12
+
+                Repeater {
+                    model: [
+                        { type: 0, label: "Definition" },
+                        { type: 1, label: "Media Path" },
+                        { type: 2, label: "Note" },
+                        { type: 3, label: "Divider" }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        implicitHeight: Platform.touchTarget
+                        implicitWidth: addLabel.implicitWidth + 24
+                        radius: Platform.radius
+                        color: addArea.containsMouse ? Platform.accent : Platform.surfaceAlt
+                        border.color: Platform.border
+                        border.width: 1
+
+                        Text {
+                            id: addLabel
+                            anchors.centerIn: parent
+                            text: "+ " + parent.modelData.label
+                            font.pixelSize: Platform.fontBase
+                            font.bold: true
+                            color: addArea.containsMouse ? Platform.textOnDark : Platform.textPrimary
+                        }
+                        MouseArea {
+                            id: addArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: appVM.wordVM.addContentBlock(parent.modelData.type)
+                        }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+            }
+        }
+        }
+    }
+
+    ConfirmDialog {
+        id: deleteWordConfirm
+        message: "Delete \"" + appVM.wordVM.selectedWord + "\"? This cannot be undone."
+        onConfirmed: appVM.wordVM.deleteWord(appVM.wordVM.selectedWordId)
+    }
+}
+
