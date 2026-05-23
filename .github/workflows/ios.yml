@@ -12,4 +12,5 @@ jobs:
           
       - name: Build iOS
         run: |
+          # Now runs natively on macOS, bypassing Docker
           ./tools/tool build --target ios
