@@ -14,15 +14,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Install Qt
+        id: install-qt
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
           target: 'ios'
-          
-      - name: Build iOS
-        env:
-          CMAKE_PREFIX_PATH: ${{ steps.install-qt.outputs.qt-path }}
+      - name: Build
         run: |
           ./tools/tool build --target ios
