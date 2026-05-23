@@ -1,3 +1,14 @@
+name: iOS Build
+
+# This is the section that was likely missing
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
   build-ios:
     runs-on: macos-latest
@@ -12,5 +23,4 @@ jobs:
           
       - name: Build iOS
         run: |
-          # Now runs natively on macOS, bypassing Docker
           ./tools/tool build --target ios
