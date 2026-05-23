@@ -1,17 +1,3 @@
-"""
-Build target definitions.
-
-A target is a (platform, image, dockerfile, cmake_args) tuple. The build
-configuration (debug, debug-tsan, release) is orthogonal: each (target, config)
-pair gets its own build directory under build/<target>-<config>/.
-
-Add a new platform by registering it here and adding tools/docker/<name>/Dockerfile.
-"""
-
-import platform
-
-generator = "Xcode" if platform.system() == "Darwin" else "Ninja"
-
 QT_VERSION = "6.8.3"
 
 BASE_IMAGE = {
@@ -68,7 +54,6 @@ TARGETS = {
             "-DCMAKE_SYSTEM_NAME=iOS",
             "-DCMAKE_OSX_DEPLOYMENT_TARGET=16.0",
             f"-DQT_HOST_PATH=/opt/Qt/{QT_VERSION}/gcc_64",
-            "-G", generator,
         ],
         "native":     False,
         "package_generators": [],
