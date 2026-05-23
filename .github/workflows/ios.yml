@@ -1,14 +1,15 @@
-name: iOS Build
-on: [push]
-
 jobs:
   build-ios:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+      
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          target: 'ios'
+          
+      - name: Build iOS
         run: |
-          # This now works because the runner is macOS
-          ./tools/tool build --target ios 
-          # Now you can add the archive step
-          xcodebuild -project build/ios-release/Tenjin.xcodeproj -scheme Tenjin -archivePath Tenjin.xcarchive archive
+          ./tools/tool build --target ios
