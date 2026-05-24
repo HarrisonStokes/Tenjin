@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <memory>
 #include <vector>
@@ -90,8 +91,15 @@ public slots:
     // Create a smart deck and attach its tag filters in one step. tagIds is a
     // list of qint64 tag ids. Returns true on success.
     Q_INVOKABLE bool
-         createSmartDeck(const QString& name, int filterMode, const QVariantList& tagIds);
-    bool deleteDeck(qint64 deckId);
+    createSmartDeck(const QString& name, int filterMode, const QVariantList& tagIds);
+    // Returns { total, due, nextDue } for a deck. nextDue is "yyyy-MM-dd" or "".
+    Q_INVOKABLE QVariantMap deckStats(qint64 deckId);
+    // Analytics for charts. deckAnalytics → { totalReviews, retention,
+    // daily: [{date, count, avgQuality}] }. wordHistory → [{reviewedAt,
+    // quality, easeFactor, intervalDays}].
+    Q_INVOKABLE QVariantMap  deckAnalytics(qint64 deckId);
+    Q_INVOKABLE QVariantList wordHistory(qint64 deckId, qint64 wordId);
+    bool                     deleteDeck(qint64 deckId);
 
     // Manual decks
     bool addWordToDeck(qint64 deckId, qint64 wordId);

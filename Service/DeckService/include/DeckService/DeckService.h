@@ -11,7 +11,7 @@ namespace Service {
 // In-memory state for an active review session. Held by the caller (typically
 // a ViewModel) and threaded through SubmitCard()/IsComplete()/CurrentCard().
 struct ReviewSession_t {
-    ID_t                  deckId       = -1;
+    ID_t                  deckId = -1;
     std::vector<Review_t> queue;
     int                   currentIndex = 0;
 };
@@ -23,7 +23,7 @@ public:
 
     // ── Deck CRUD ────────────────────────────────────────────────────────────
     Result_t<Deck_t> CreateDeck(const std::string& name, bool isSmart, FilterMode_t mode);
-    Result_t<Deck_t>              GetDeck(ID_t deckId) const;
+    Result_t<Deck_t> GetDeck(ID_t deckId) const;
     Result_t<std::vector<Deck_t>> GetAllDecks() const;
     Result_t<bool>                DeleteDeck(ID_t deckId);
 
@@ -37,7 +37,10 @@ public:
     Result_t<std::vector<Tag_t>> GetTagFilters(ID_t deckId) const;
 
     // Resolves manual or smart deck membership to a concrete word list.
-    Result_t<std::vector<Word_t>> GetWordsForDeck(ID_t deckId) const;
+    Result_t<std::vector<Word_t>>            GetWordsForDeck(ID_t deckId) const;
+    Result_t<DeckStats_t>                    GetDeckStats(ID_t deckId) const;
+    Result_t<DeckAnalytics_t>                GetDeckAnalytics(ID_t deckId) const;
+    Result_t<std::vector<WordReviewEvent_t>> GetWordHistory(ID_t deckId, ID_t wordId) const;
 
     // ── Review session ───────────────────────────────────────────────────────
     Result_t<ReviewSession_t> StartSession(ID_t deckId);

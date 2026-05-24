@@ -10,15 +10,7 @@ Rectangle {
 
     signal addWordRequested()
     signal addDeckRequested()
-
-    function createSidebarTag() {
-        const name = newSidebarTag.text.trim()
-        if (name.length === 0) return
-        if (appVM.wordVM.createTag(name)) {
-            newSidebarTag.text = ""
-            appVM.sidebarVM.reload()
-        }
-    }
+    signal addTagRequested()
 
     ColumnLayout {
         anchors.fill: parent
@@ -89,11 +81,10 @@ Rectangle {
         }
 
         // ── Add button (context-sensitive: Word on Words tab, Deck on
-        //    Decks tab; hidden on Tags) ──────────────────────────────
+        //    Decks tab, + Tag on Tags tab) ──────────────────────────
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: visible ? 40 : 0
-            visible: sidebarMode === 0 || sidebarMode === 2
+            Layout.preferredHeight: 40
             color: Platform.surface
             Rectangle {
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
@@ -108,7 +99,7 @@ Rectangle {
                 color: addBtnArea.containsMouse ? Platform.accentDark : Platform.accent
                 Text {
                     anchors.centerIn: parent
-                    text: sidebarMode === 0 ? "+ Word" : "+ Deck"
+                    text: sidebarMode === 0 ? "+ Word" : sidebarMode === 1 ? "+ Tag" : "+ Deck"
                     color: Platform.bg
                     font.pixelSize: 12
                     font.bold: true
@@ -120,7 +111,8 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (sidebarMode === 0) sidebarRoot.addWordRequested()
-                        else if (sidebarMode === 2) sidebarRoot.addDeckRequested()
+                        else if (sidebarMode === 1) sidebarRoot.addTagRequested()
+                        else sidebarRoot.addDeckRequested()
                     }
                 }
             }
@@ -194,56 +186,10 @@ Rectangle {
                 }
             }
 
-            // Tags (tree: tag → words)
+            // Tags (tree: tag → words). Creation is via the "+ Tag" button
+            // above (opens AddTagDialog), matching the word/deck pattern.
             ColumnLayout {
                 spacing: 6
-
-                // New-tag toolbar
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.margins: 8
-                    spacing: 6
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: Platform.touchTarget * 0.85
-                        color: Platform.bg
-                        radius: Platform.radius - 2
-                        border.color: newSidebarTag.activeFocus ? Platform.accent : Platform.border
-                        border.width: 1
-
-                        TextField {
-                            id: newSidebarTag
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            placeholderText: "New tag\u2026"
-                            placeholderTextColor: Platform.textMuted
-                            color: Platform.textPrimary
-                            font.pixelSize: Platform.fontBase - 1
-                            background: null
-                            onAccepted: createSidebarTag()
-                        }
-                    }
-
-                    Rectangle {
-                        implicitWidth: Platform.touchTarget * 0.85
-                        implicitHeight: Platform.touchTarget * 0.85
-                        radius: Platform.radius - 2
-                        color: addSidebarTagArea.containsMouse ? Platform.accentDark : Platform.accent
-                        Text {
-                            anchors.centerIn: parent
-                            text: "+"; color: Platform.bg
-                            font.pixelSize: Platform.fontLarge; font.bold: true
-                        }
-                        MouseArea {
-                            id: addSidebarTagArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: createSidebarTag()
-                        }
-                    }
-                }
 
                 ListView {
                     id: tagListView
@@ -311,14 +257,6 @@ Rectangle {
                         }
                     }
                 }
-
-                function createSidebarTag() {
-                    if (newSidebarTag.text.trim().length > 0) {
-                        appVM.wordVM.createTag(newSidebarTag.text.trim())
-                        newSidebarTag.text = ""
-                        appVM.sidebarVM.reload()
-                    }
-                }
             }
 
             // Decks
@@ -326,6 +264,18 @@ Rectangle {
                 id: deckListView
                 clip: true
                 model: appVM.deckVM.deckModel
+
+                // Bumped to force the per-row due badges to re-query deckStats
+                // (e.g. after decks reload or a review session changes counts).
+                property int deckRefresh: 0
+                Connections {
+                    target: appVM.deckVM.deckModel
+                    function onModelReset() { deckListView.deckRefresh++ }
+                }
+                Connections {
+                    target: appVM.reviewVM
+                    function onSessionChanged() { deckListView.deckRefresh++ }
+                }
 
                 delegate: Rectangle {
                     width: ListView.view.width
@@ -342,6 +292,7 @@ Rectangle {
 
                     RowLayout {
                         anchors { fill: parent; leftMargin: 14; rightMargin: 8 }
+                        spacing: 6
                         Text {
                             Layout.fillWidth: true
                             text: model.deckName
@@ -354,6 +305,29 @@ Rectangle {
                             font.pixelSize: 9
                             color: Platform.textMuted
                             visible: model.isSmart
+                        }
+                        // Due badge / next-due hint. Recomputed when the deck
+                        // model changes (deckRefresh bumps on reload).
+                        Rectangle {
+                            id: dueBadge
+                            property var stats: (deckListView.deckRefresh, appVM.deckVM.deckStats(model.deckId))
+                            visible: stats.total > 0
+                            implicitWidth: dueText.implicitWidth + 12
+                            implicitHeight: 18
+                            radius: 9
+                            color: stats.due > 0 ? Platform.accent : "transparent"
+                            border.color: stats.due > 0 ? Platform.accent : Platform.border
+                            border.width: 1
+                            Text {
+                                id: dueText
+                                anchors.centerIn: parent
+                                text: dueBadge.stats.due > 0
+                                      ? dueBadge.stats.due + " due"
+                                      : (dueBadge.stats.nextDue.length > 0 ? "✓" : "✓")
+                                color: dueBadge.stats.due > 0 ? Platform.bg : Platform.textMuted
+                                font.pixelSize: 10
+                                font.bold: dueBadge.stats.due > 0
+                            }
                         }
                     }
                     Rectangle {

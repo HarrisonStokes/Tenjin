@@ -127,6 +127,63 @@ bool DeckViewModel::createSmartDeck(const QString& name, int filterMode, const Q
     return true;
 }
 
+QVariantMap DeckViewModel::deckStats(qint64 deckId)
+{
+    QVariantMap out;
+    auto        result = m_deckService->GetDeckStats(deckId);
+    if (!result) {
+        out["total"]   = 0;
+        out["due"]     = 0;
+        out["nextDue"] = QString();
+        return out;
+    }
+    out["total"]   = result->total;
+    out["due"]     = result->due;
+    out["nextDue"] = QString::fromStdString(result->nextDue);
+    return out;
+}
+
+QVariantMap DeckViewModel::deckAnalytics(qint64 deckId)
+{
+    QVariantMap out;
+    auto        result = m_deckService->GetDeckAnalytics(deckId);
+    if (!result) {
+        out["totalReviews"] = 0;
+        out["retention"]    = 0.0;
+        out["daily"]        = QVariantList{};
+        return out;
+    }
+    out["totalReviews"] = result->totalReviews;
+    out["retention"]    = result->retention;
+    QVariantList daily;
+    for (const auto& d : result->daily) {
+        QVariantMap m;
+        m["date"]       = QString::fromStdString(d.date);
+        m["count"]      = d.count;
+        m["avgQuality"] = d.avgQuality;
+        daily.append(m);
+    }
+    out["daily"] = daily;
+    return out;
+}
+
+QVariantList DeckViewModel::wordHistory(qint64 deckId, qint64 wordId)
+{
+    QVariantList out;
+    auto         result = m_deckService->GetWordHistory(deckId, wordId);
+    if (!result)
+        return out;
+    for (const auto& e : *result) {
+        QVariantMap m;
+        m["reviewedAt"]   = QVariant::fromValue(e.reviewedAt);
+        m["quality"]      = e.quality;
+        m["easeFactor"]   = e.easeFactor;
+        m["intervalDays"] = e.intervalDays;
+        out.append(m);
+    }
+    return out;
+}
+
 bool DeckViewModel::deleteDeck(qint64 deckId)
 {
     auto result = m_deckService->DeleteDeck(deckId);

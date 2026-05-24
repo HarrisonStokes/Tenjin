@@ -154,39 +154,13 @@ ApplicationWindow {
 
             // ── Top-bar utility buttons (left→right: about, theme, debug,
             //    so visually right-to-left it reads debug, theme, about) ──
-            component IconBtn: Rectangle {
-                id: ib
-                property string glyph: ""
-                property bool   active: false
-                signal activated()
-                Layout.preferredWidth: Math.round(Platform.touchTarget * 0.9)
-                Layout.preferredHeight: Math.round(Platform.touchTarget * 0.9)
-                radius: Platform.radius
-                color: ibArea.containsMouse || active ? Platform.surfaceAlt : "transparent"
-                border.color: active ? Platform.accent : "transparent"
-                border.width: 1
-                Text {
-                    anchors.centerIn: parent
-                    text: ib.glyph
-                    color: ib.active ? Platform.accent : Platform.textMuted
-                    font.pixelSize: Platform.fontLarge
-                }
-                MouseArea {
-                    id: ibArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: ib.activated()
-                    onEntered: if (ib === aboutBtn) aboutPopup.open()
-                    onExited:  if (ib === aboutBtn) aboutPopup.close()
-                }
-            }
 
             // About (ⓘ) — info popup on hover.
             IconBtn {
                 id: aboutBtn
                 glyph: "\u24D8"
                 onActivated: aboutPopup.open()
+                onHoveredChanged: hovered ? aboutPopup.open() : aboutPopup.close()
             }
 
             // Theme toggle (sun/moon).
@@ -226,7 +200,7 @@ ApplicationWindow {
             Text { text: "Vocabulary & spaced-repetition study"; color: Platform.textMuted; font.pixelSize: Platform.fontBase - 1; wrapMode: Text.WordWrap; Layout.fillWidth: true }
             Rectangle { Layout.fillWidth: true; height: 1; color: Platform.border; opacity: 0.5 }
             Text { text: "Version 1.0"; color: Platform.textMuted; font.pixelSize: Platform.fontBase - 1 }
-            Text { text: "Qt " + (typeof Qt.application !== "undefined" ? "" : "") + "6.8"; color: Platform.textMuted; font.pixelSize: Platform.fontBase - 1 }
+            Text { text: "Qt 6.8"; color: Platform.textMuted; font.pixelSize: Platform.fontBase - 1 }
             Text { text: Qt.platform.os; color: Platform.textMuted; font.pixelSize: Platform.fontBase - 1 }
         }
     }
@@ -242,6 +216,7 @@ ApplicationWindow {
             Layout.fillHeight: true
             onAddWordRequested: addWordDialog.open()
             onAddDeckRequested: addDeckDialog.open()
+            onAddTagRequested: addTagDialog.open()
         }
         Rectangle {
             visible: !Platform.isMobile && !appVM.sidebarVM.collapsed
@@ -269,6 +244,7 @@ ApplicationWindow {
             anchors.fill: parent
             onAddWordRequested: addWordDialog.open()
             onAddDeckRequested: addDeckDialog.open()
+            onAddTagRequested: addTagDialog.open()
             Connections {
                 target: appVM.sidebarVM
                 function onWordSelected() { sidebarDrawer.close() }
@@ -279,6 +255,7 @@ ApplicationWindow {
     // Dialogs
     AddWordDialog { id: addWordDialog }
     AddDeckDialog { id: addDeckDialog }
+    AddTagDialog { id: addTagDialog }
 
     // Error toast
     Connections { target: appVM.wordVM; function onErrorOccurred(msg) { toast.show(msg) } }

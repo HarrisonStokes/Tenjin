@@ -80,6 +80,34 @@ struct Review_t {
     Timestamp_t   lastReviewDate;
 };
 
+struct DeckStats_t {
+    int         total = 0; // member words
+    int         due   = 0; // due now (incl. never-reviewed "new" cards)
+    Timestamp_t nextDue;   // earliest upcoming review date (empty if none/all due)
+};
+
+// One day's aggregate of review activity (for time-series charts).
+struct DailyStat_t {
+    std::string date;       // "yyyy-MM-dd"
+    int         count;      // reviews that day
+    double      avgQuality; // mean grade 0..3 that day
+};
+
+// A single review event for a word (per-word history view).
+struct WordReviewEvent_t {
+    std::int64_t reviewedAt; // epoch ms
+    int          quality;
+    double       easeFactor;
+    int          intervalDays;
+};
+
+// Aggregate analytics for a whole deck.
+struct DeckAnalytics_t {
+    int                      totalReviews = 0;
+    double                   retention    = 0.0; // fraction of grades >= 2
+    std::vector<DailyStat_t> daily;              // chronological
+};
+
 // ── DatabaseManager ───────────────────────────────────────────────────────────
 class DatabaseManager
 {
@@ -153,6 +181,13 @@ public:
     Result_t<Review_t>              InitReview(ID_t deckId, ID_t wordId);
     Result_t<Review_t>              SubmitReview(ID_t deckId, ID_t wordId, int quality);
     Result_t<std::vector<Review_t>> GetDueReviews(ID_t deckId);
+    // Aggregate stats for a deck: total member words, count due now (new cards
+    // count as due), and the earliest upcoming review date.
+    Result_t<DeckStats_t> GetDeckStats(ID_t deckId);
+
+    // ── Analytics (read from review_log) ──────────────────────────────────────
+    Result_t<DeckAnalytics_t>                GetDeckAnalytics(ID_t deckId);
+    Result_t<std::vector<WordReviewEvent_t>> GetWordHistory(ID_t deckId, ID_t wordId);
 
     // ── Cross-table ───────────────────────────────────────────────────────────
     Result_t<std::vector<Word_t>> GetWordsForDeck(ID_t deckId);

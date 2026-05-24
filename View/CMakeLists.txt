@@ -31,6 +31,8 @@ qt_add_qml_module(TenjinView
         Sidebar.qml
         Platform.qml
         WordPage.qml
+        AnalyticsPanel.qml
+        ChartCard.qml
         DeckListPage.qml
         DeckListPanel.qml
         DeckDetailPanel.qml
@@ -41,8 +43,10 @@ qt_add_qml_module(TenjinView
         SearchBox.qml
         SearchBar.qml
         ConfirmDialog.qml
+        AddTagDialog.qml
         AddWordDialog.qml
         AddDeckDialog.qml
+        IconBtn.qml
         ${_TENJIN_MEDIA_QML}
 )
 

@@ -1,7 +1,9 @@
 #include <DatabaseManager/DatabaseManager.h>
 
+#include <QDate>
 #include <QDateTime>
 #include <QFile>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -35,7 +37,7 @@ DatabaseManager::DatabaseManager(const std::string& filepath)
 
     m_db = db;
 
-    std::array<const char*, 14> sql_cmds = {
+    std::array<const char*, 15> sql_cmds = {
         "PRAGMA foreign_keys = ON;",
 
         "CREATE TABLE IF NOT EXISTS word ("
@@ -119,7 +121,18 @@ DatabaseManager::DatabaseManager(const std::string& filepath)
         "repetitions      INTEGER DEFAULT 0,"
         "next_review_date TEXT,"
         "last_review_date TEXT,"
-        "UNIQUE (deck_id, word_id));"};
+        "UNIQUE (deck_id, word_id));",
+
+        // History of every individual review event, for analytics (accuracy
+        // over time, review-count charts, streaks). Append-only.
+        "CREATE TABLE IF NOT EXISTS review_log ("
+        "id            INTEGER PRIMARY KEY,"
+        "deck_id       INTEGER,"
+        "word_id       INTEGER,"
+        "quality       INTEGER NOT NULL,"
+        "ease_factor   REAL,"
+        "interval_days INTEGER,"
+        "reviewed_at   INTEGER NOT NULL);"};
 
     for (const auto& sql : sql_cmds) {
         QSqlQuery q(m_db);
@@ -543,8 +556,7 @@ Result_t<std::vector<ContentBlock_t>> DatabaseManager::SearchContent(const std::
                                         .row     = q.value(4).toInt(),
                                         .col     = q.value(5).toInt(),
                                         .rowSpan = q.value(6).toInt(),
-                                        .colSpan = q.value(7).toInt(),
-                                        .pos     = q.value(8).toString().toStdString()});
+                                        .colSpan = q.value(7).toInt()});
     }
     return blocks;
 }
@@ -914,6 +926,21 @@ Result_t<Review_t> DatabaseManager::SubmitReview(ID_t deckId, ID_t wordId, int q
     if (!q.exec())
         return std::unexpected(q.lastError().text().toStdString());
 
+    // Append to the review history log (analytics). Non-fatal if it fails.
+    {
+        QSqlQuery log(m_db);
+        log.prepare("INSERT INTO review_log "
+                    "(deck_id, word_id, quality, ease_factor, interval_days, reviewed_at) "
+                    "VALUES (:d, :w, :q, :ef, :iv, :ts);");
+        log.bindValue(":d", QVariant::fromValue(deckId));
+        log.bindValue(":w", QVariant::fromValue(wordId));
+        log.bindValue(":q", quality);
+        log.bindValue(":ef", easeFactor);
+        log.bindValue(":iv", intervalDays);
+        log.bindValue(":ts", QDateTime::currentMSecsSinceEpoch());
+        log.exec();
+    }
+
     return Review_t{.id             = reviewId,
                     .deckId         = deckId,
                     .wordId         = wordId,
@@ -948,6 +975,102 @@ Result_t<std::vector<Review_t>> DatabaseManager::GetDueReviews(ID_t deckId)
                                    .lastReviewDate = q.value(7).toString().toStdString()});
     }
     return reviews;
+}
+
+Result_t<DeckStats_t> DatabaseManager::GetDeckStats(ID_t deckId)
+{
+    DeckStats_t stats;
+
+    auto words = GetWordsForDeck(deckId);
+    if (!words)
+        return std::unexpected(words.error());
+    stats.total = static_cast<int>(words->size());
+    if (stats.total == 0)
+        return stats;
+
+    QSqlQuery q(m_db);
+    q.prepare("SELECT word_id, next_review_date FROM review WHERE deck_id = :d;");
+    q.bindValue(":d", QVariant::fromValue(deckId));
+    if (!q.exec())
+        return std::unexpected(q.lastError().text().toStdString());
+
+    QHash<qint64, QString> nextByWord;
+    while (q.next())
+        nextByWord.insert(q.value(0).toLongLong(), q.value(1).toString());
+
+    const QString today = QDate::currentDate().toString("yyyy-MM-dd");
+    QString       earliestUpcoming;
+
+    for (const auto& w : *words) {
+        const auto it = nextByWord.find(static_cast<qint64>(w.id));
+        if (it == nextByWord.end()) {
+            ++stats.due; // never reviewed → new card, due
+            continue;
+        }
+        const QString next = it.value();
+        if (next.isEmpty() || next <= today) {
+            ++stats.due;
+        } else if (earliestUpcoming.isEmpty() || next < earliestUpcoming) {
+            earliestUpcoming = next;
+        }
+    }
+    stats.nextDue = earliestUpcoming.toStdString();
+    return stats;
+}
+
+Result_t<DeckAnalytics_t> DatabaseManager::GetDeckAnalytics(ID_t deckId)
+{
+    DeckAnalytics_t a;
+
+    // Daily aggregates: count + average grade per day, chronological.
+    // reviewed_at is epoch ms; convert to a local date string in SQL via SQLite's
+    // datetime on (ms/1000) seconds.
+    QSqlQuery q(m_db);
+    q.prepare("SELECT date(reviewed_at/1000, 'unixepoch', 'localtime') AS d, "
+              "COUNT(*) AS c, AVG(quality) AS aq "
+              "FROM review_log WHERE deck_id = :d "
+              "GROUP BY d ORDER BY d ASC;");
+    q.bindValue(":d", QVariant::fromValue(deckId));
+    if (!q.exec())
+        return std::unexpected(q.lastError().text().toStdString());
+    while (q.next()) {
+        a.daily.push_back(DailyStat_t{
+            q.value(0).toString().toStdString(), q.value(1).toInt(), q.value(2).toDouble()});
+        a.totalReviews += q.value(1).toInt();
+    }
+
+    // Retention: fraction of all grades that were "remembered" (quality >= 2).
+    QSqlQuery rq(m_db);
+    rq.prepare("SELECT "
+               "SUM(CASE WHEN quality >= 2 THEN 1 ELSE 0 END) AS good, COUNT(*) AS total "
+               "FROM review_log WHERE deck_id = :d;");
+    rq.bindValue(":d", QVariant::fromValue(deckId));
+    if (rq.exec() && rq.next()) {
+        const int total = rq.value(1).toInt();
+        a.retention     = (total > 0) ? rq.value(0).toDouble() / total : 0.0;
+    }
+    return a;
+}
+
+Result_t<std::vector<WordReviewEvent_t>> DatabaseManager::GetWordHistory(ID_t deckId, ID_t wordId)
+{
+    QSqlQuery q(m_db);
+    q.prepare("SELECT reviewed_at, quality, ease_factor, interval_days "
+              "FROM review_log WHERE deck_id = :d AND word_id = :w "
+              "ORDER BY reviewed_at ASC;");
+    q.bindValue(":d", QVariant::fromValue(deckId));
+    q.bindValue(":w", QVariant::fromValue(wordId));
+    if (!q.exec())
+        return std::unexpected(q.lastError().text().toStdString());
+
+    std::vector<WordReviewEvent_t> events;
+    while (q.next()) {
+        events.push_back(WordReviewEvent_t{q.value(0).toLongLong(),
+                                           q.value(1).toInt(),
+                                           q.value(2).toDouble(),
+                                           q.value(3).toInt()});
+    }
+    return events;
 }
 
 Result_t<std::vector<Word_t>> DatabaseManager::GetWordsForDeck(ID_t deckId)
@@ -1275,6 +1398,7 @@ Result_t<bool> DatabaseManager::ImportFromJson(const QString& path)
             if (!ins.exec()) {
                 // A word with the same text but different guid may already exist
                 // (UNIQUE on word). Treat that as the same word and adopt it.
+                qint64    dummy = 0;
                 QSqlQuery byName(m_db);
                 byName.prepare("SELECT id FROM word WHERE word = :w;");
                 byName.bindValue(":w", txt);

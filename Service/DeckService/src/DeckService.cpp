@@ -2,9 +2,7 @@
 
 namespace Service {
 
-DeckService::DeckService(std::shared_ptr<DatabaseManager> db)
-    : m_db(std::move(db))
-{}
+DeckService::DeckService(std::shared_ptr<DatabaseManager> db) : m_db(std::move(db)) {}
 
 Result_t<Deck_t> DeckService::CreateDeck(const std::string& name, bool isSmart, FilterMode_t mode)
 {
@@ -58,6 +56,21 @@ Result_t<std::vector<Word_t>> DeckService::GetWordsForDeck(ID_t deckId) const
     return m_db->GetWordsForDeck(deckId);
 }
 
+Result_t<DeckStats_t> DeckService::GetDeckStats(ID_t deckId) const
+{
+    return m_db->GetDeckStats(deckId);
+}
+
+Result_t<DeckAnalytics_t> DeckService::GetDeckAnalytics(ID_t deckId) const
+{
+    return m_db->GetDeckAnalytics(deckId);
+}
+
+Result_t<std::vector<WordReviewEvent_t>> DeckService::GetWordHistory(ID_t deckId, ID_t wordId) const
+{
+    return m_db->GetWordHistory(deckId, wordId);
+}
+
 Result_t<ReviewSession_t> DeckService::StartSession(ID_t deckId)
 {
     auto wordsResult = m_db->GetWordsForDeck(deckId);
@@ -75,11 +88,7 @@ Result_t<ReviewSession_t> DeckService::StartSession(ID_t deckId)
     if (!dueResult)
         return std::unexpected(dueResult.error());
 
-    return ReviewSession_t{
-        .deckId = deckId,
-        .queue  = std::move(*dueResult),
-        .currentIndex = 0
-    };
+    return ReviewSession_t{.deckId = deckId, .queue = std::move(*dueResult), .currentIndex = 0};
 }
 
 Result_t<Review_t> DeckService::SubmitCard(ReviewSession_t& session, int quality)
@@ -88,7 +97,7 @@ Result_t<Review_t> DeckService::SubmitCard(ReviewSession_t& session, int quality
         return std::unexpected("Session complete.");
 
     const auto& current = session.queue[session.currentIndex];
-    auto result = m_db->SubmitReview(session.deckId, current.wordId, quality);
+    auto        result  = m_db->SubmitReview(session.deckId, current.wordId, quality);
     if (result)
         session.currentIndex++;
     return result;

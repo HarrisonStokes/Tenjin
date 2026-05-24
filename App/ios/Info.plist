@@ -26,6 +26,16 @@
     <string>16.0</string>
     <key>UILaunchScreen</key>
     <dict/>
+    <!-- QtMultimedia / media access usage strings. iOS terminates the app if a
+         protected-resource API is touched without these present. Playback of
+         bundled/local media doesn't always need them, but having them avoids
+         hard crashes if a media path probes the photo library, mic, or camera. -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Tenjin can attach images and videos to your word cards.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Tenjin can record audio for pronunciation notes.</string>
+    <key>NSAppleMusicUsageDescription</key>
+    <string>Tenjin can play audio attached to your cards.</string>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
         <string>arm64</string>

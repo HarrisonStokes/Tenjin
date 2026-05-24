@@ -9,6 +9,7 @@ Item {
     id: panelRoot
     // Provided by the page so Review can be launched.
     property var reviewLoaderRef: null
+    property bool showAnalytics: false
 
     ColumnLayout {
         anchors { fill: parent; margins: Platform.pagePadding }
@@ -38,9 +39,21 @@ Item {
                 }
             }
             ActionButton {
+                text: panelRoot.showAnalytics ? "Hide analytics" : "Analytics"
+                onClicked: panelRoot.showAnalytics = !panelRoot.showAnalytics
+            }
+            ActionButton {
                 text: "Delete"; variant: "danger"
                 onClicked: deleteDeckConfirm.open()
             }
+        }
+
+        // ── Analytics (toggled) ─────────────────────────────────────
+        AnalyticsPanel {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 480
+            visible: panelRoot.showAnalytics
+            deckId: panelRoot.showAnalytics ? appVM.deckVM.selectedDeckId : -1
         }
 
         // ── Smart deck: tag-filter editor ───────────────────────────
@@ -213,4 +226,3 @@ Item {
         onConfirmed: appVM.deckVM.deleteDeck(appVM.deckVM.selectedDeckId)
     }
 }
-
