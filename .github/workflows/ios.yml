@@ -1,25 +1,95 @@
-name: iOS Build
+name: iOS build
 
-# This is the section that was likely missing
+# Builds Tenjin for iOS on a macOS runner and produces an UNSIGNED device .ipa
+# you can sideload. CI cannot sign with a free Apple account, so signing happens
+# on your side:
+#
+#   Option A — AltStore / Sideloadly (no Mac needed after CI):
+#     1. Download the "tenjin-ios-unsigned-ipa" artifact from this run.
+#     2. Open it in AltStore or Sideloadly, sign in with your free Apple ID.
+#     3. It re-signs with your account and installs to your iPhone.
+#        (AltStore auto-renews every 7 days; Sideloadly is manual.)
+#
+#   Option B — Xcode (on your Mac):
+#     Skip CI. Run ./tools/ios-configure.sh, open build-ios/Tenjin.xcodeproj,
+#     set your Apple ID team, plug in the phone, press Run.
+#
+# Free Apple ID: app runs 7 days then must be re-signed. Paid ($99/yr): 1 year.
+
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-ios:
-    runs-on: macos-latest
+  ios-build:
+    runs-on: macos-14
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Qt
-        id: install-qt
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install Qt (macOS host)
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
+          host: 'mac'
+          target: 'desktop'
+          arch: 'clang_64'
+          modules: 'qtmultimedia'
+          dir: ${{ github.workspace }}/Qt
+          cache: true
+
+      - name: Install Qt (iOS target)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'mac'
           target: 'ios'
-      - name: Build
+          modules: 'qtmultimedia'
+          dir: ${{ github.workspace }}/Qt
+          cache: true
+
+      - name: Configure (qt-cmake, Xcode generator)
         run: |
-          ./tools/tool build --target ios
+          QT_IOS="${{ github.workspace }}/Qt/Qt/6.8.3/ios"
+          QT_HOST="${{ github.workspace }}/Qt/Qt/6.8.3/macos"
+          "$QT_IOS/bin/qt-cmake" -G Xcode -S . -B build-ios \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+            -DQT_HOST_PATH="$QT_HOST" \
+            -DMEDIA_SUPPORT=ON \
+            -DWEBVIEW_SUPPORT=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_BENCHMARKS=OFF \
+            -DSANITIZERS=""
+
+      # Build for the device SDK, unsigned. AltStore/Sideloadly will sign it.
+      - name: Build (device, unsigned)
+        run: |
+          cmake --build build-ios --config Release -- \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      # Package the .app into an unsigned .ipa (Payload/ structure that sideload
+      # tools expect).
+      - name: Package unsigned .ipa
+        run: |
+          APP=$(find build-ios -name "Tenjin.app" -type d | head -n1)
+          if [ -z "$APP" ]; then echo "Tenjin.app not found"; exit 1; fi
+          rm -rf payload && mkdir -p payload/Payload
+          cp -R "$APP" payload/Payload/
+          (cd payload && zip -qry ../Tenjin-unsigned.ipa Payload)
+          echo "Built $(du -h Tenjin-unsigned.ipa | cut -f1) unsigned ipa"
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: tenjin-ios-unsigned-ipa
+          path: Tenjin-unsigned.ipa
+          if-no-files-found: error
