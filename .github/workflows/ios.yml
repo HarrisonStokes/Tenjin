@@ -4,15 +4,15 @@ name: iOS build
 # you can sideload. CI cannot sign with a free Apple account, so signing happens
 # on your side:
 #
-#   Option A — AltStore / Sideloadly (no Mac needed after CI):
+#   AltStore / Sideloadly (no Mac needed after CI):
 #     1. Download the "tenjin-ios-unsigned-ipa" artifact from this run.
-#     2. Open it in AltStore or Sideloadly, sign in with your free Apple ID.
-#     3. It re-signs with your account and installs to your iPhone.
-#        (AltStore auto-renews every 7 days; Sideloadly is manual.)
+#     2. Open it in AltStore (Sideload .ipa…) or Sideloadly, sign in with your
+#        free Apple ID. It re-signs with your account and installs to your iPhone.
+#        AltStore auto-renews every 7 days; Sideloadly is manual.
 #
-#   Option B — Xcode (on your Mac):
-#     Skip CI. Run ./tools/ios-configure.sh, open build-ios/Tenjin.xcodeproj,
-#     set your Apple ID team, plug in the phone, press Run.
+#   Xcode (on your Mac), if you prefer:
+#     ./tools/ios-configure.sh && open build-ios/Tenjin.xcodeproj
+#     Set your Apple ID team in Signing & Capabilities, plug in the phone, Run.
 #
 # Free Apple ID: app runs 7 days then must be re-signed. Paid ($99/yr): 1 year.
 
@@ -64,7 +64,8 @@ jobs:
             -DWEBVIEW_SUPPORT=OFF \
             -DBUILD_TESTS=OFF \
             -DBUILD_BENCHMARKS=OFF \
-            -DSANITIZERS=""
+            -DSANITIZERS="" \
+            -DTENJIN_BUILD_NUMBER="${{ github.run_number }}"
 
       # Build for the device SDK, unsigned. AltStore/Sideloadly will sign it.
       - name: Build (device, unsigned)
@@ -76,12 +77,29 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
+      # Sanity-check the bundle before packaging: executable, plist keys, and a
+      # compiled app icon must all be present, or the sideload will look broken.
+      - name: Verify bundle
+        run: |
+          APP=$(find build-ios -name "Tenjin.app" -type d | head -n1)
+          if [ -z "$APP" ]; then echo "::error::Tenjin.app not found"; exit 1; fi
+          echo "App bundle: $APP"
+          PLIST="$APP/Info.plist"
+          # Compiled binary plists need plutil to read.
+          plutil -p "$PLIST" | grep -q 'CFBundleIconName' \
+            || { echo "::error::CFBundleIconName missing from built plist"; exit 1; }
+          # AppIcon must have been compiled into the bundle by the asset catalog.
+          if ! ls "$APP"/AppIcon*.png >/dev/null 2>&1; then
+            echo "::warning::No AppIcon*.png in bundle — icon may not have compiled."
+          fi
+          echo "CFBundleVersion: $(plutil -extract CFBundleVersion raw "$PLIST")"
+          echo "Bundle verified."
+
       # Package the .app into an unsigned .ipa (Payload/ structure that sideload
       # tools expect).
       - name: Package unsigned .ipa
         run: |
           APP=$(find build-ios -name "Tenjin.app" -type d | head -n1)
-          if [ -z "$APP" ]; then echo "Tenjin.app not found"; exit 1; fi
           rm -rf payload && mkdir -p payload/Payload
           cp -R "$APP" payload/Payload/
           (cd payload && zip -qry ../Tenjin-unsigned.ipa Payload)

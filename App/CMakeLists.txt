@@ -20,20 +20,50 @@ target_link_libraries(Tenjin
 target_include_directories(Tenjin PRIVATE src)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # CFBundleVersion must be a monotonically increasing build number (Apple +
+    # AltStore reject re-installs whose build number didn't change). Default to
+    # 1; CI/local can override with -DTENJIN_BUILD_NUMBER=<n> (e.g. the run
+    # number) so each sideloaded build is distinct.
+    if(NOT DEFINED TENJIN_BUILD_NUMBER)
+        set(TENJIN_BUILD_NUMBER "1")
+    endif()
+
+    # The app icon asset catalog. Adding it to the target's sources lets Xcode
+    # compile it into the bundle (producing the real icon files); the matching
+    # name is set via XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME.
+    target_sources(Tenjin PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/ios/Assets.xcassets"
+    )
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/ios/Assets.xcassets"
+        PROPERTIES MACOSX_PACKAGE_LOCATION Resources
+    )
+
     set_target_properties(Tenjin PROPERTIES
         MACOSX_BUNDLE                              TRUE
         MACOSX_BUNDLE_INFO_PLIST                   "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist"
         MACOSX_BUNDLE_BUNDLE_NAME                  "Tenjin"
-        MACOSX_BUNDLE_BUNDLE_VERSION               "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_BUNDLE_VERSION               "${TENJIN_BUILD_NUMBER}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING         "${PROJECT_VERSION}"
         MACOSX_BUNDLE_GUI_IDENTIFIER               "app.tenjin.Tenjin"
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER  "app.tenjin.Tenjin"
         XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "16.0"
         XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY     "1,2"
+        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+        # Default to "no team / sign later" so an unsigned device build succeeds
+        # in CI; AltStore/Sideloadly/Xcode apply the real identity afterwards.
+        XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED      "NO"
+        XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED       "NO"
     )
+
+    # If you build & sign locally in Xcode, pass -DAPPLE_TEAM_ID=XXXXXXXXXX to
+    # flip on automatic signing with your Apple ID team.
     if(DEFINED APPLE_TEAM_ID)
         set_target_properties(Tenjin PROPERTIES
-            XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${APPLE_TEAM_ID}"
+            XCODE_ATTRIBUTE_DEVELOPMENT_TEAM          "${APPLE_TEAM_ID}"
+            XCODE_ATTRIBUTE_CODE_SIGN_STYLE           "Automatic"
+            XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED     "YES"
+            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED      "YES"
         )
     endif()
 endif()
