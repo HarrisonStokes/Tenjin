@@ -141,7 +141,6 @@ Result_t<bool> DatabaseManager::ExportToJson(const QString& path)
     return true;
 }
 
-
 Result_t<bool> DatabaseManager::ImportFromJson(const QString& path)
 {
     QFile f(path);
@@ -232,7 +231,6 @@ Result_t<bool> DatabaseManager::ImportFromJson(const QString& path)
             if (!ins.exec()) {
                 // A word with the same text but different guid may already exist
                 // (UNIQUE on word). Treat that as the same word and adopt it.
-                qint64    dummy = 0;
                 QSqlQuery byName(m_db);
                 byName.prepare("SELECT id FROM entry WHERE title = :w;");
                 byName.bindValue(":w", txt);
@@ -265,13 +263,15 @@ Result_t<bool> DatabaseManager::ImportFromJson(const QString& path)
             qint64 bid       = findByGuid("entry_content", bg, bExisting);
             if (bid < 0) {
                 QSqlQuery ins(m_db);
-                ins.prepare(
-                    "INSERT INTO entry_content "
-                    "(entry_id, type, kind, content, row, col, row_span, col_span, pos, guid, updated_at) "
-                    "VALUES (:wid, :ty, :knd, :ct, :r, :c, :rs, :cs, :pos, :g, :u);");
+                ins.prepare("INSERT INTO entry_content "
+                            "(entry_id, type, kind, content, row, col, row_span, col_span, pos, "
+                            "guid, updated_at) "
+                            "VALUES (:wid, :ty, :knd, :ct, :r, :c, :rs, :cs, :pos, :g, :u);");
                 ins.bindValue(":wid", wid);
                 ins.bindValue(":ty", b.value("type").toInt());
-                ins.bindValue(":knd", QString::fromStdString(ToKindString(static_cast<ContentType_t>(b.value("type").toInt()))));
+                ins.bindValue(":knd",
+                              QString::fromStdString(ToKindString(
+                                  static_cast<ContentType_t>(b.value("type").toInt()))));
                 ins.bindValue(":ct", b.value("content").toString());
                 ins.bindValue(":r", b.value("row").toInt());
                 ins.bindValue(":c", b.value("col").toInt());
@@ -285,10 +285,13 @@ Result_t<bool> DatabaseManager::ImportFromJson(const QString& path)
             } else if (bup > bExisting) {
                 QSqlQuery up(m_db);
                 up.prepare(
-                    "UPDATE entry_content SET type = :ty, kind = :knd, content = :ct, row = :r, col = :c, "
+                    "UPDATE entry_content SET type = :ty, kind = :knd, content = :ct, row = :r, "
+                    "col = :c, "
                     "row_span = :rs, col_span = :cs, pos = :pos, updated_at = :u WHERE id = :id;");
                 up.bindValue(":ty", b.value("type").toInt());
-                up.bindValue(":knd", QString::fromStdString(ToKindString(static_cast<ContentType_t>(b.value("type").toInt()))));
+                up.bindValue(":knd",
+                             QString::fromStdString(ToKindString(
+                                 static_cast<ContentType_t>(b.value("type").toInt()))));
                 up.bindValue(":ct", b.value("content").toString());
                 up.bindValue(":r", b.value("row").toInt());
                 up.bindValue(":c", b.value("col").toInt());

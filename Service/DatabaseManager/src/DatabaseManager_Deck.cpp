@@ -38,7 +38,6 @@ Result_t<Deck_t> DatabaseManager::AddDeck(const std::string& name, bool isSmart,
                   .createdAt  = {}};
 }
 
-
 Result_t<Deck_t> DatabaseManager::GetDeck(ID_t id)
 {
     QSqlQuery q(m_db);
@@ -62,7 +61,6 @@ Result_t<Deck_t> DatabaseManager::GetDeck(ID_t id)
                   .createdAt  = q.value(4).toString().toStdString()};
 }
 
-
 Result_t<std::vector<Deck_t>> DatabaseManager::GetAllDecks()
 {
     QSqlQuery q(m_db);
@@ -84,7 +82,6 @@ Result_t<std::vector<Deck_t>> DatabaseManager::GetAllDecks()
     return decks;
 }
 
-
 Result_t<bool> DatabaseManager::DeleteDeck(ID_t id)
 {
     QSqlQuery q(m_db);
@@ -100,7 +97,6 @@ Result_t<bool> DatabaseManager::DeleteDeck(ID_t id)
     return true;
 }
 
-
 Result_t<bool> DatabaseManager::AddWordToDeck(ID_t deckId, ID_t wordId)
 {
     QSqlQuery q(m_db);
@@ -113,7 +109,6 @@ Result_t<bool> DatabaseManager::AddWordToDeck(ID_t deckId, ID_t wordId)
 
     return true;
 }
-
 
 Result_t<bool> DatabaseManager::RemoveWordFromDeck(ID_t deckId, ID_t wordId)
 {
@@ -131,7 +126,6 @@ Result_t<bool> DatabaseManager::RemoveWordFromDeck(ID_t deckId, ID_t wordId)
     return true;
 }
 
-
 Result_t<bool> DatabaseManager::AddTagFilterToDeck(ID_t deckId, ID_t tagId)
 {
     QSqlQuery q(m_db);
@@ -144,7 +138,6 @@ Result_t<bool> DatabaseManager::AddTagFilterToDeck(ID_t deckId, ID_t tagId)
 
     return true;
 }
-
 
 Result_t<bool> DatabaseManager::RemoveTagFilterFromDeck(ID_t deckId, ID_t tagId)
 {
@@ -161,7 +154,6 @@ Result_t<bool> DatabaseManager::RemoveTagFilterFromDeck(ID_t deckId, ID_t tagId)
 
     return true;
 }
-
 
 Result_t<std::vector<Tag_t>> DatabaseManager::GetTagFiltersForDeck(ID_t deckId)
 {
@@ -182,7 +174,6 @@ Result_t<std::vector<Tag_t>> DatabaseManager::GetTagFiltersForDeck(ID_t deckId)
     }
     return tags;
 }
-
 
 Result_t<std::vector<Word_t>> DatabaseManager::GetWordsForDeck(ID_t deckId)
 {
@@ -223,7 +214,6 @@ Result_t<std::vector<Word_t>> DatabaseManager::GetWordsForDeck(ID_t deckId)
 
     return GetWordsByTags(tagIds, deck->filterMode);
 }
-
 
 Result_t<std::vector<Word_t>> DatabaseManager::GetWordsByTags(const std::vector<ID_t>& tagIds,
                                                               FilterMode_t             mode)
@@ -266,9 +256,9 @@ Result_t<std::vector<Word_t>> DatabaseManager::GetWordsByTags(const std::vector<
 
     std::vector<Word_t> words;
     while (q.next()) {
-        words.emplace_back(q.value(0).toLongLong(),
-                           q.value(1).toString().toStdString(),
-                           q.value(2).toString().toStdString());
+        words.push_back(Word_t{.id        = q.value(0).toLongLong(),
+                               .word      = q.value(1).toString().toStdString(),
+                               .createdAt = q.value(2).toString().toStdString()});
     }
     return words;
 }
