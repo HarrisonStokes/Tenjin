@@ -18,12 +18,16 @@ name: iOS build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   ios-build:
     runs-on: macos-14
+    # Needed so the workflow's GITHUB_TOKEN can create a Release and upload the
+    # .ipa asset. The default token is read-only since 2023.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -35,21 +39,21 @@ jobs:
       - name: Install Qt (macOS host)
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
-          host: 'mac'
-          target: 'desktop'
-          arch: 'clang_64'
-          modules: 'qtmultimedia'
+          version: "6.8.3"
+          host: "mac"
+          target: "desktop"
+          arch: "clang_64"
+          modules: "qtmultimedia"
           dir: ${{ github.workspace }}/Qt
           cache: true
 
       - name: Install Qt (iOS target)
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
-          host: 'mac'
-          target: 'ios'
-          modules: 'qtmultimedia'
+          version: "6.8.3"
+          host: "mac"
+          target: "ios"
+          modules: "qtmultimedia"
           dir: ${{ github.workspace }}/Qt
           cache: true
 
@@ -105,9 +109,19 @@ jobs:
           (cd payload && zip -qry ../Tenjin-unsigned.ipa Payload)
           echo "Built $(du -h Tenjin-unsigned.ipa | cut -f1) unsigned ipa"
 
-      - name: Upload unsigned .ipa
-        uses: actions/upload-artifact@v4
+      # Publish the .ipa as a GitHub Release asset rather than an Actions
+      # artifact. Three reasons:
+      #   1. Release assets are the RAW file — AltStore gets a real .ipa, not the
+      #      zip-wrapped-in-a-zip that actions/upload-artifact produces (that
+      #      wrapper is why AltStore reports "not in the right format").
+      #   2. Releases do NOT count against the Actions artifact storage quota.
+      #   3. Each build gets a stable, direct download URL.
+      - name: Publish .ipa to a GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: tenjin-ios-unsigned-ipa
-          path: Tenjin-unsigned.ipa
-          if-no-files-found: error
+          tag_name: ios-build-${{ github.run_number }}
+          name: iOS build ${{ github.run_number }}
+          files: Tenjin-unsigned.ipa
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
