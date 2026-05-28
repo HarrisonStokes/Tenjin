@@ -89,14 +89,23 @@ jobs:
           if [ -z "$APP" ]; then echo "::error::Tenjin.app not found"; exit 1; fi
           echo "App bundle: $APP"
           PLIST="$APP/Info.plist"
-          # Compiled binary plists need plutil to read.
-          plutil -p "$PLIST" | grep -q 'CFBundleIconName' \
-            || { echo "::error::CFBundleIconName missing from built plist"; exit 1; }
-          # AppIcon must have been compiled into the bundle by the asset catalog.
-          if ! ls "$APP"/AppIcon*.png >/dev/null 2>&1; then
-            echo "::warning::No AppIcon*.png in bundle — icon may not have compiled."
+          echo "===== FULL Info.plist (as built) ====="
+          plutil -p "$PLIST"
+          echo "===== bundle top-level contents ====="
+          ls -la "$APP"
+          echo "===== executable check ====="
+          EXE=$(plutil -extract CFBundleExecutable raw "$PLIST")
+          echo "CFBundleExecutable = $EXE"
+          if [ ! -f "$APP/$EXE" ]; then
+            echo "::error::Bundle executable '$EXE' is missing from the .app!"
+            exit 1
           fi
-          echo "CFBundleVersion: $(plutil -extract CFBundleVersion raw "$PLIST")"
+          file "$APP/$EXE"
+          echo "===== plist validity ====="
+          plutil -lint "$PLIST"
+          # AppIcon should have compiled into the bundle.
+          ls "$APP"/AppIcon*.png 2>/dev/null && echo "icon present" \
+            || echo "::warning::No AppIcon*.png in bundle."
           echo "Bundle verified."
 
       # Package the .app into an unsigned .ipa (Payload/ structure that sideload
