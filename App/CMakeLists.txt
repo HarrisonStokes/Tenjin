@@ -66,6 +66,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
             XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED      "YES"
         )
     endif()
+
+    # Qt 6.8's QtMultimedia on iOS uses FFmpeg as its media backend, but the
+    # Qt installer does NOT auto-link the FFmpeg frameworks. Without this call
+    # the final link fails with hundreds of "Undefined symbols: _av_*, _avcodec_*,
+    # _swr_*, _sws_*" errors. qt_add_ios_ffmpeg_libraries embeds the FFmpeg
+    # frameworks (libavcodec, libavformat, libavutil, libswresample, libswscale)
+    # from the Qt iOS kit into the .app bundle and configures rpath.
+    # See: https://doc.qt.io/qt-6/qt-add-ios-ffmpeg-libraries.html
+    if(MEDIA_SUPPORT)
+        if(CMAKE_VERSION VERSION_LESS "3.28")
+            message(FATAL_ERROR
+                "iOS + MEDIA_SUPPORT=ON needs CMake >= 3.28 for qt_add_ios_ffmpeg_libraries. "
+                "Either upgrade CMake, or configure with -DMEDIA_SUPPORT=OFF for iOS.")
+        endif()
+        if(COMMAND qt_add_ios_ffmpeg_libraries)
+            # Unsigned CI builds: skip per-framework code-sign-on-copy. AltStore /
+            # Sideloadly / Xcode re-sign the whole bundle (including embedded
+            # frameworks) when they install. Skip is harmless for signed builds.
+            set(QT_NO_FFMPEG_XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY ON)
+            qt_add_ios_ffmpeg_libraries(Tenjin)
+        else()
+            message(FATAL_ERROR
+                "qt_add_ios_ffmpeg_libraries is not available — Qt 6.8+ is required "
+                "for iOS media support, or set -DMEDIA_SUPPORT=OFF.")
+        endif()
+    endif()
 endif()
 
 # Windows: install + windeployqt handled entirely in cmake/Packaging.cmake
