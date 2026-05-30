@@ -108,15 +108,71 @@ jobs:
             || echo "::warning::No AppIcon*.png in bundle."
           echo "Bundle verified."
 
-      # Package the .app into an unsigned .ipa (Payload/ structure that sideload
-      # tools expect).
+      # Re-sign every Mach-O in the bundle with an ad-hoc signature using Apple's
+      # `codesign` tool. Why: Qt ships the FFmpeg .framework binaries with The Qt
+      # Company's Team ID. When AltStore re-signs the IPA on install it replaces
+      # the MAIN binary's signature with your free Apple ID team's Team ID — but
+      # AltStore's framework re-signing (via ldid on Windows) is unreliable for
+      # nested .framework bundles. The mismatch makes dyld's Library Validation
+      # reject the FFmpeg frameworks at launch and the kernel SIGKILLs the
+      # process before main() runs (no .ips crash report is produced — exactly
+      # the "black flash, instant exit" symptom on iOS 26).
+      #
+      # Ad-hoc signing every Mach-O here gives AltStore a known-clean starting
+      # state: all signatures are the same (none — ad-hoc), AltStore replaces
+      # them uniformly with the user's team identity, and dyld accepts the
+      # bundle.
+      - name: Ad-hoc sign all Mach-O binaries in the bundle
+        run: |
+          APP=$(find build-ios -name "Tenjin.app" -type d | head -n1)
+          echo "Re-signing every framework in: $APP/Frameworks"
+          if [ -d "$APP/Frameworks" ]; then
+            for FW in "$APP"/Frameworks/*.framework; do
+              [ -d "$FW" ] || continue
+              echo "  ad-hoc signing $FW"
+              codesign --force --sign - --timestamp=none "$FW"
+            done
+          else
+            echo "  (no Frameworks/ dir; nothing to sign)"
+          fi
+          echo "Ad-hoc signing main executable"
+          codesign --force --sign - --timestamp=none "$APP"
+          echo "===== verify signatures ====="
+          codesign -dv --verbose=2 "$APP" 2>&1 | head -20
+          if [ -d "$APP/Frameworks" ]; then
+            for FW in "$APP"/Frameworks/*.framework; do
+              [ -d "$FW" ] || continue
+              echo "--- $(basename $FW) ---"
+              codesign -dv "$FW" 2>&1 | grep -E "Identifier|TeamIdentifier|Signature" || true
+            done
+          fi
+
+      # Package the .app into an unsigned .ipa (Payload/<App>.app structure).
+      #
+      # Use `ditto`, Apple's archiver, NOT `zip`. The bundle now contains a
+      # Frameworks/ folder (embedded FFmpeg) whose .framework dirs use SYMLINKS.
+      # Plain `zip -qry` compresses and mishandles those symlinks, producing an
+      # archive that AltStore's strict zip parser rejects the instant you select
+      # it ("couldn't be read because it isn't in the right format"). `ditto`
+      # preserves symlinks and bundle structure correctly. `cp -RP` likewise
+      # preserves symlinks instead of dereferencing them.
       - name: Package unsigned .ipa
         run: |
           APP=$(find build-ios -name "Tenjin.app" -type d | head -n1)
           rm -rf payload && mkdir -p payload/Payload
-          cp -R "$APP" payload/Payload/
-          (cd payload && zip -qry ../Tenjin-unsigned.ipa Payload)
+          cp -RP "$APP" payload/Payload/
+          # ditto -c -k = create a PKZip archive; --keepParent keeps the Payload
+          # dir as the top-level entry, exactly what the IPA format expects.
+          ( cd payload && ditto -c -k --keepParent --sequesterRsrc Payload ../Tenjin-unsigned.ipa )
           echo "Built $(du -h Tenjin-unsigned.ipa | cut -f1) unsigned ipa"
+          echo "===== verify archive is readable and well-formed ====="
+          # unzip -t tests integrity; the listing must start with Payload/.
+          unzip -t Tenjin-unsigned.ipa >/dev/null && echo "archive integrity OK"
+          echo "top-level entries:"
+          unzip -Z1 Tenjin-unsigned.ipa | sed -n '1,5p'
+          unzip -Z1 Tenjin-unsigned.ipa | grep -q '^Payload/' \
+            && echo "Payload/ at top level — OK" \
+            || { echo "::error::archive does not start with Payload/"; exit 1; }
 
       # Publish the .ipa as a GitHub Release asset rather than an Actions
       # artifact. Three reasons:

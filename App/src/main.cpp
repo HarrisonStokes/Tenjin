@@ -1,9 +1,14 @@
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QSqlDatabase>
+#include <QStandardPaths>
 #include <QStringList>
+#include <QTextStream>
 
 #include <exception>
 
@@ -63,20 +68,48 @@ int main(int argc, char* argv[])
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     // Construct the app/database layer. The DatabaseManager ctor throws if the
-    // SQLite driver isn't available (the classic static-build failure mode) or
-    // the DB can't be opened. Catch it so we log a clear, actionable message
-    // instead of the process silently terminating on launch (esp. on iOS).
+    // SQLite driver isn't available or the DB can't be opened. Log the failure
+    // loudly: qCritical() goes to idevicesyslog, AND we write a fatal.txt to
+    // AppDataLocation so the user can retrieve it via the Files app
+    // (UIFileSharingEnabled=true). Without this, a Qt init failure looks
+    // identical to a pre-main() AMFI kill: silent black-screen exit, no crash
+    // report in Analytics Data.
+    auto writeFatal = [](const QString& what) {
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir().mkpath(dir);
+        QFile log(dir + "/fatal.txt");
+        if (log.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream(&log) << QDateTime::currentDateTime().toString(Qt::ISODate) << " " << what
+                              << "\n";
+        }
+    };
+
+    // Pre-create AppDataLocation before anything tries to use it; on iOS the
+    // directory returned by writableLocation() does not exist until mkpath'd,
+    // and any sqlite3_open() / QSettings write below would fail SQLITE_CANTOPEN.
+    QDir().mkpath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+
     std::unique_ptr<AppViewModel> appVMPtr;
     try {
         appVMPtr = std::make_unique<AppViewModel>();
     } catch (const std::exception& e) {
-        qCritical() << "FATAL: app/database init failed:" << e.what();
+        const QString msg = QStringLiteral("FATAL: app/database init failed: ") + e.what();
+        qCritical().noquote() << msg;
         qCritical() << "Available SQL drivers:" << QSqlDatabase::drivers();
+        writeFatal(msg);
+        writeFatal(QStringLiteral("  drivers=") + QSqlDatabase::drivers().join(','));
         if (!QSqlDatabase::drivers().contains(QStringLiteral("QSQLITE"))) {
-            qCritical() << "The QSQLITE driver is NOT registered. On a static "
-                           "build the driver plugin must be linked into the app "
-                           "(Qt6::QSQLiteDriverPlugin).";
+            const QString hint =
+                QStringLiteral("QSQLITE driver NOT registered. On a static build the driver plugin "
+                               "must be linked into the app (Qt6::QSQLiteDriverPlugin).");
+            qCritical().noquote() << hint;
+            writeFatal(hint);
         }
+        return -1;
+    } catch (...) {
+        const QString msg = QStringLiteral("FATAL: unknown exception in AppViewModel ctor");
+        qCritical().noquote() << msg;
+        writeFatal(msg);
         return -1;
     }
     AppViewModel& appVM = *appVMPtr;

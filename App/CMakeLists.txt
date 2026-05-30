@@ -95,10 +95,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
                 "Either upgrade CMake, or configure with -DMEDIA_SUPPORT=OFF for iOS.")
         endif()
         if(COMMAND qt_add_ios_ffmpeg_libraries)
-            # Unsigned CI builds: skip per-framework code-sign-on-copy. AltStore /
-            # Sideloadly / Xcode re-sign the whole bundle (including embedded
-            # frameworks) when they install. Skip is harmless for signed builds.
-            set(QT_NO_FFMPEG_XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY ON)
+            # NOTE: Do NOT set QT_NO_FFMPEG_XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY.
+            # On iOS 26 + AltStore-on-Windows, skipping per-framework code-sign-on-copy
+            # leaves the FFmpeg frameworks signed with the Qt installer's Team ID
+            # while AltStore re-signs only the main binary with the user's free Apple
+            # ID team. dyld's Library Validation rejects the mismatch and the kernel
+            # SIGKILLs the process before main() runs — producing exactly the
+            # "black flash, no crash report" symptom. Let Xcode ad-hoc-sign the
+            # frameworks on copy; AltStore then cleanly re-signs all of them.
             qt_add_ios_ffmpeg_libraries(Tenjin)
         else()
             message(FATAL_ERROR
