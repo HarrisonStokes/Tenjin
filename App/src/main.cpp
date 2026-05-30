@@ -2,6 +2,10 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QSqlDatabase>
+#include <QStringList>
+
+#include <exception>
 
 #include <ViewModels/AppViewModel.h>
 #include <ViewModels/LogViewModel.h>
@@ -58,7 +62,24 @@ int main(int argc, char* argv[])
     // without extra plugin dependencies.
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
-    AppViewModel appVM;
+    // Construct the app/database layer. The DatabaseManager ctor throws if the
+    // SQLite driver isn't available (the classic static-build failure mode) or
+    // the DB can't be opened. Catch it so we log a clear, actionable message
+    // instead of the process silently terminating on launch (esp. on iOS).
+    std::unique_ptr<AppViewModel> appVMPtr;
+    try {
+        appVMPtr = std::make_unique<AppViewModel>();
+    } catch (const std::exception& e) {
+        qCritical() << "FATAL: app/database init failed:" << e.what();
+        qCritical() << "Available SQL drivers:" << QSqlDatabase::drivers();
+        if (!QSqlDatabase::drivers().contains(QStringLiteral("QSQLITE"))) {
+            qCritical() << "The QSQLITE driver is NOT registered. On a static "
+                           "build the driver plugin must be linked into the app "
+                           "(Qt6::QSQLiteDriverPlugin).";
+        }
+        return -1;
+    }
+    AppViewModel& appVM = *appVMPtr;
 
     // Debug-console log capture. Created before installing the handler.
     LogViewModel logModel;

@@ -19,6 +19,20 @@ target_link_libraries(Tenjin
 
 target_include_directories(Tenjin PRIVATE src)
 
+# On a STATIC Qt build (iOS) the QSQLITE driver is a plugin that must be
+# compiled into the binary; there is no runtime sqldrivers/ folder to load it
+# from. Qt's automatic static-plugin import does NOT reliably pick up the SQL
+# driver when Qt6::Sql reaches the executable only transitively (through the
+# DatabaseManager static lib), so link the plugin target explicitly. Linking a
+# Qt plugin target pulls in its *_init object, which emits Q_IMPORT_PLUGIN.
+# Guarded by TARGET so it's a harmless no-op on dynamic desktop builds where the
+# driver is loaded at runtime. Without this, addDatabase("QSQLITE") yields an
+# invalid driver, db.open() fails, the DatabaseManager ctor throws, and the
+# app terminates the instant it launches on iOS.
+if(TARGET Qt6::QSQLiteDriverPlugin)
+    target_link_libraries(Tenjin PRIVATE Qt6::QSQLiteDriverPlugin)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     # CFBundleVersion must be a monotonically increasing build number (Apple +
     # AltStore reject re-installs whose build number didn't change). Default to
