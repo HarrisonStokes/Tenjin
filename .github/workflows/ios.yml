@@ -64,7 +64,7 @@ jobs:
           "$QT_IOS/bin/qt-cmake" -G Xcode -S . -B build-ios \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
             -DQT_HOST_PATH="$QT_HOST" \
-            -DMEDIA_SUPPORT=ON \
+            -DMEDIA_SUPPORT=OFF \
             -DWEBVIEW_SUPPORT=OFF \
             -DBUILD_TESTS=OFF \
             -DBUILD_BENCHMARKS=OFF \
