@@ -65,7 +65,16 @@ int main(int argc, char* argv[])
 
     // Fusion is the only Quick Controls style guaranteed on every platform
     // without extra plugin dependencies.
+    // QQuickStyle::setStyle() picks the QtQuick.Controls 2 style at runtime.
+    // Use "Basic" on iOS: it's the platform-default, always-present style and
+    // does not require a separately-linked style plugin to be alive after the
+    // static linker dead-strips. On desktop, keep Fusion for a more polished
+    // look (it IS reliably auto-imported by dynamic Qt).
+#if defined(Q_OS_IOS)
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
+#else
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
+#endif
 
     // Construct the app/database layer. The DatabaseManager ctor throws if the
     // SQLite driver isn't available or the DB can't be opened. Log the failure
@@ -128,8 +137,10 @@ int main(int argc, char* argv[])
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,
         &app,
-        [](const QUrl& url) {
-            qCritical() << "QML creation FAILED:" << url;
+        [&writeFatal](const QUrl& url) {
+            const QString msg = QStringLiteral("QML creation FAILED: ") + url.toString();
+            qCritical().noquote() << msg;
+            writeFatal(msg);
             QCoreApplication::exit(-1);
         },
         Qt::QueuedConnection);
@@ -140,7 +151,12 @@ int main(int argc, char* argv[])
     qDebug() << "Root objects after load:" << engine.rootObjects().size();
 
     if (engine.rootObjects().isEmpty()) {
-        qCritical() << "FAILED: no root objects for" << url;
+        const QString msg = QStringLiteral("FAILED: no root objects for ") + url.toString();
+        qCritical().noquote() << msg;
+        writeFatal(msg);
+        writeFatal(QStringLiteral("  (likely cause: a QtQuick / QtQuick.Controls "
+                                  "style / QML module plugin was not linked into "
+                                  "the static iOS binary — check qt_import_plugins)"));
         return -1;
     }
     return app.exec();

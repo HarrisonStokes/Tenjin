@@ -33,6 +33,52 @@ if(TARGET Qt6::QSQLiteDriverPlugin)
     target_link_libraries(Tenjin PRIVATE Qt6::QSQLiteDriverPlugin)
 endif()
 
+# iOS static plugin imports.
+#
+# On a STATIC Qt build (always the case on iOS) the linker dead-strips any
+# translation unit whose symbols are not referenced from the executable's main
+# code path. QML modules and style plugins are referenced only by name from QML
+# source at runtime — the linker can't see those references and drops the
+# plugins. The app then launches, gets to engine.load("...Main.qml"), the QML
+# engine fails to find the QtQuick / QtQuick.Controls / style plugin, root
+# objects ends up empty, main() returns -1, and iOS records nothing as a crash
+# (no .ips file, no SIGABRT — just a clean exit and a black flash).
+#
+# qt_import_plugins forces these plugins to be linked in regardless. INCLUDE
+# pins specific plugin targets; INCLUDE_BY_TYPE pulls every plugin of a given
+# category. The platforms/iconengines/imageformats categories cover everything
+# QtGui needs at startup.
+#
+# Reference: Qt Wiki "Qt for iOS known issues" (QTBUG-35195: default plugins
+# for a module are not added automatically) and forum.qt.io topic 153384.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    qt_import_plugins(Tenjin
+        INCLUDE_BY_TYPE platforms
+        INCLUDE_BY_TYPE iconengines
+        INCLUDE_BY_TYPE imageformats
+        INCLUDE_BY_TYPE qmltooling
+    )
+    # QtQuick / QtQuick.Controls 2 style plugins. We set QQuickStyle::setStyle
+    # at runtime, which means the linker would otherwise drop these. List every
+    # style we might fall back to; unused ones are still tiny.
+    foreach(_plug
+        Qt6::QQuickControls2BasicStylePlugin
+        Qt6::QQuickControls2FusionStylePlugin
+        Qt6::QQuickControls2MaterialStylePlugin
+        Qt6::QQuickControls2UniversalStylePlugin
+        Qt6::QQuickControls2ImaginePlugin
+        Qt6::qquickcontrols2plugin
+        Qt6::quickplugin
+        Qt6::qtquick2plugin
+        Qt6::labsanimationplugin
+        Qt6::qmlplugin
+    )
+        if(TARGET ${_plug})
+            target_link_libraries(Tenjin PRIVATE ${_plug})
+        endif()
+    endforeach()
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     # CFBundleVersion must be a monotonically increasing build number (Apple +
     # AltStore reject re-installs whose build number didn't change). Default to
