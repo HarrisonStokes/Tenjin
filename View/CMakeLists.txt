@@ -25,6 +25,24 @@ qt_add_qml_module(TenjinView
     OUTPUT_DIRECTORY  ${CMAKE_BINARY_DIR}/qml/TenjinView
     IMPORT_PATH       ${CMAKE_BINARY_DIR}/qml
 
+    # Declaring every module our .qml files import is REQUIRED for static builds
+    # (iOS). It tells qmlimportscanner which backing plugins the app needs so
+    # they get linked into the binary. Without this, modules like
+    # QtQuick.Layouts and QtQuick.Controls.Basic are dead-stripped and the app
+    # fails at runtime with "module ... is not installed" → no root objects →
+    # silent exit. The media/webview imports are conditional, matching the
+    # conditionally-compiled QML above.
+    IMPORTS
+        QtQuick
+        QtQuick.Controls
+        QtQuick.Controls.Basic
+        QtQuick.Layouts
+        QtQuick.Dialogs
+        QtQml
+        QtQml.Models
+        $<$<BOOL:${MEDIA_SUPPORT}>:QtMultimedia>
+        $<$<BOOL:${WEBVIEW_SUPPORT}>:QtWebEngine>
+
     QML_FILES
         Main.qml
         ActionButton.qml
