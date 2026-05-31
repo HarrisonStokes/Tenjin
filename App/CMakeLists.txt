@@ -89,6 +89,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         # QtQuick.Dialogs
         Qt6::qtquickdialogs2plugin
         Qt6::qtquickdialogs2quickimplplugin
+        Qt6::qquickdialogs2plugin
+        Qt6::qquickdialogs2quickimplplugin
+        Qt6::quickdialogs2plugin
+        Qt6::quickdialogs2quickimplplugin
+        Qt6::qtquickdialogsplugin
+        Qt6::qtlabsplatformplugin
+        Qt6::quicklabsplatformplugin
         # QtQml / Models
         Qt6::qmlplugin
         Qt6::qmlmodelsplugin
