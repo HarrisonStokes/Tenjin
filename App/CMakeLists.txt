@@ -63,6 +63,52 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         INCLUDE_BY_TYPE iconengines
         INCLUDE_BY_TYPE imageformats
     )
+    # Belt-and-suspenders: explicitly link the QML module plugin targets we know
+    # the UI imports. qt_import_qml_plugins relies on qmlimportscanner picking
+    # up the module's IMPORTS; if that under-reports (it did in practice for
+    # Layouts/Controls.Basic/Dialogs), these explicit links guarantee the
+    # plugins survive dead-stripping. if(TARGET) guards make missing ones a
+    # no-op. Target names follow Qt's convention (module dotted name → plugin
+    # target); covering the common spellings across Qt 6.8 kits.
+    foreach(_qmlplug
+        # QtQuick core
+        Qt6::qtquick2plugin
+        Qt6::quickplugin
+        # QtQuick.Layouts
+        Qt6::qquicklayoutsplugin
+        Qt6::qtquicklayoutsplugin
+        # QtQuick.Controls + Basic style
+        Qt6::qtquickcontrols2plugin
+        Qt6::qquickcontrols2plugin
+        Qt6::qtquickcontrols2basicstyleplugin
+        Qt6::qquickcontrols2basicstyleplugin
+        Qt6::QQuickControls2BasicStylePlugin
+        Qt6::qtquickcontrols2implplugin
+        Qt6::qtquicktemplates2plugin
+        Qt6::qquicktemplates2plugin
+        # QtQuick.Dialogs
+        Qt6::qtquickdialogs2plugin
+        Qt6::qtquickdialogs2quickimplplugin
+        # QtQml / Models
+        Qt6::qmlplugin
+        Qt6::qmlmodelsplugin
+        Qt6::modelsplugin
+        Qt6::qtqmlmodelsplugin
+        # QtMultimedia (only present when MEDIA_SUPPORT linked it)
+        Qt6::quickmultimediaplugin
+        Qt6::multimediaquickplugin
+    )
+        if(TARGET ${_qmlplug})
+            target_link_libraries(Tenjin PRIVATE ${_qmlplug})
+            message(STATUS "Tenjin iOS: linked QML plugin ${_qmlplug}")
+        endif()
+    endforeach()
+
+    # Diagnostic: list every QML-ish plugin target Qt actually defines in this
+    # kit, so if a needed plugin has a name we didn't guess, it shows up in the
+    # configure log and we can add it precisely.
+    get_property(_all_targets DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY IMPORTED_TARGETS)
+    message(STATUS "Tenjin iOS: (see Qt plugin import scan results in build log)")
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")

@@ -18,6 +18,32 @@ if(WEBVIEW_SUPPORT)
     list(APPEND _TENJIN_MEDIA_QML WebEmbed.qml)
 endif()
 
+# Declaring every module our .qml files import is REQUIRED for static builds
+# (iOS): it tells qmlimportscanner which backing plugins to link into the
+# binary. Without it, modules like QtQuick.Layouts / QtQuick.Controls.Basic are
+# dead-stripped and the app fails at runtime with "module ... is not installed"
+# → no root objects → silent exit.
+#
+# NOTE: the IMPORTS keyword takes PLAIN module names evaluated at configure
+# time. Generator expressions ($<...>) are NOT evaluated here and would be
+# recorded verbatim as bogus module names — so build the list with ordinary
+# if() appends instead.
+set(_TENJIN_QML_IMPORTS
+    QtQuick
+    QtQuick.Controls
+    QtQuick.Controls.Basic
+    QtQuick.Layouts
+    QtQuick.Dialogs
+    QtQml
+    QtQml.Models
+)
+if(MEDIA_SUPPORT)
+    list(APPEND _TENJIN_QML_IMPORTS QtMultimedia)
+endif()
+if(WEBVIEW_SUPPORT)
+    list(APPEND _TENJIN_QML_IMPORTS QtWebEngine)
+endif()
+
 qt_add_qml_module(TenjinView
     URI            TenjinView
     VERSION        1.0
@@ -25,23 +51,8 @@ qt_add_qml_module(TenjinView
     OUTPUT_DIRECTORY  ${CMAKE_BINARY_DIR}/qml/TenjinView
     IMPORT_PATH       ${CMAKE_BINARY_DIR}/qml
 
-    # Declaring every module our .qml files import is REQUIRED for static builds
-    # (iOS). It tells qmlimportscanner which backing plugins the app needs so
-    # they get linked into the binary. Without this, modules like
-    # QtQuick.Layouts and QtQuick.Controls.Basic are dead-stripped and the app
-    # fails at runtime with "module ... is not installed" → no root objects →
-    # silent exit. The media/webview imports are conditional, matching the
-    # conditionally-compiled QML above.
     IMPORTS
-        QtQuick
-        QtQuick.Controls
-        QtQuick.Controls.Basic
-        QtQuick.Layouts
-        QtQuick.Dialogs
-        QtQml
-        QtQml.Models
-        $<$<BOOL:${MEDIA_SUPPORT}>:QtMultimedia>
-        $<$<BOOL:${WEBVIEW_SUPPORT}>:QtWebEngine>
+        ${_TENJIN_QML_IMPORTS}
 
     QML_FILES
         Main.qml
