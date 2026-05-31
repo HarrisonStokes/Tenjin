@@ -7,7 +7,7 @@ Dialog {
     id: root
     modal: true
     anchors.centerIn: parent
-    width: 400
+    width: Platform.isMobile ? Math.min(parent.width - 32, 400) : 400
     padding: 24
     topPadding: 0
     standardButtons: Dialog.Ok | Dialog.Cancel
@@ -93,3 +93,4 @@ Dialog {
         }
     }
 }
+

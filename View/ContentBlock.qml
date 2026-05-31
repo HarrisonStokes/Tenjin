@@ -126,7 +126,7 @@ Rectangle {
                 visible: root.isDefinition && root.editMode
                 Layout.alignment: Qt.AlignVCenter
                 implicitHeight: Platform.isMobile ? 28 : 22
-                implicitWidth: 130
+                implicitWidth: Platform.isMobile ? 160 : 130
                 font.pixelSize: Platform.fontBase - 2
                 model: root.posOptions
                 currentIndex: Math.max(0, root.posOptions.indexOf(root.blockPos))
@@ -443,9 +443,9 @@ Rectangle {
             width: contentLoader.width
             spacing: 8
 
-            // Control row (edit mode only): Browse + Open-in-default + clear.
-            // No filename is shown; hover any media to see its path.
-            RowLayout {
+            // Control row (edit mode only): Browse + URL field.
+            // On mobile these stack vertically so the URL field isn't squeezed.
+            ColumnLayout {
                 Layout.fillWidth: true
                 visible: root.editMode
                 spacing: 8
@@ -700,3 +700,4 @@ Rectangle {
         }
     }
 }
+

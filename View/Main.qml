@@ -99,10 +99,11 @@ ApplicationWindow {
 
             Item { Layout.fillWidth: true }
 
-            // Search (Words page only)
+            // Search (Words page only) — fills remaining space on mobile.
             SearchBox {
                 visible: appVM.currentPage === 0
                 parentWidth: root.width
+                Layout.fillWidth: Platform.isMobile
             }
 
             // Add button
@@ -152,12 +153,14 @@ ApplicationWindow {
                 }
             }
 
-            // ── Top-bar utility buttons (left→right: about, theme, debug,
-            //    so visually right-to-left it reads debug, theme, about) ──
+            // ── Top-bar utility buttons ──────────────────────────
+            // About and Debug are hidden on mobile — the header is already
+            // crowded on a phone-width screen.
 
             // About (ⓘ) — info popup on hover.
             IconBtn {
                 id: aboutBtn
+                visible: !Platform.isMobile
                 glyph: "\u24D8"
                 onActivated: aboutPopup.open()
                 onHoveredChanged: hovered ? aboutPopup.open() : aboutPopup.close()
@@ -170,9 +173,10 @@ ApplicationWindow {
                 onActivated: appVM.setTheme(Platform.isDark ? 0 : 1)
             }
 
-            // Debug console toggle.
+            // Debug console toggle — desktop only.
             IconBtn {
                 id: debugBtn
+                visible: !Platform.isMobile
                 glyph: "\u2699"  // ⚙
                 active: debugDrawer.visible
                 onActivated: debugDrawer.visible = !debugDrawer.visible
@@ -467,3 +471,4 @@ ApplicationWindow {
         }
     }
 }
+

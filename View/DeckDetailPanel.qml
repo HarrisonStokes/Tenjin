@@ -15,36 +15,72 @@ Item {
         anchors { fill: parent; margins: Platform.pagePadding }
         spacing: 14
 
-        // Header
-        RowLayout {
+        // Header — name row + action buttons.
+        // On mobile the buttons move to a second row so nothing clips.
+        ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
-            Text {
-                text: appVM.deckVM.selectedDeckName
-                color: Platform.textPrimary
-                font.pixelSize: Platform.fontTitle; font.bold: true
-                elide: Text.ElideRight
-            }
-            Text {
-                text: appVM.deckVM.selectedDeckIsSmart ? "(Smart)" : "(Manual)"
-                color: Platform.textMuted; font.pixelSize: Platform.fontBase
-            }
-            Item { Layout.fillWidth: true }
+            spacing: 6
 
-            ActionButton {
-                text: "▶ Review"; variant: "success"
-                onClicked: {
-                    appVM.reviewVM.startSession(appVM.deckVM.selectedDeckId)
-                    if (panelRoot.reviewLoaderRef) panelRoot.reviewLoaderRef.active = true
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Text {
+                    text: appVM.deckVM.selectedDeckName
+                    color: Platform.textPrimary
+                    font.pixelSize: Platform.fontTitle; font.bold: true
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+                Text {
+                    text: appVM.deckVM.selectedDeckIsSmart ? "(Smart)" : "(Manual)"
+                    color: Platform.textMuted; font.pixelSize: Platform.fontBase
+                }
+
+                // Desktop: keep buttons inline with the title.
+                Row {
+                    visible: !Platform.isMobile
+                    spacing: 8
+                    ActionButton {
+                        text: "▶ Review"; variant: "success"
+                        onClicked: {
+                            appVM.reviewVM.startSession(appVM.deckVM.selectedDeckId)
+                            if (panelRoot.reviewLoaderRef) panelRoot.reviewLoaderRef.active = true
+                        }
+                    }
+                    ActionButton {
+                        text: panelRoot.showAnalytics ? "Hide analytics" : "Analytics"
+                        onClicked: panelRoot.showAnalytics = !panelRoot.showAnalytics
+                    }
+                    ActionButton {
+                        text: "Delete"; variant: "danger"
+                        onClicked: deleteDeckConfirm.open()
+                    }
                 }
             }
-            ActionButton {
-                text: panelRoot.showAnalytics ? "Hide analytics" : "Analytics"
-                onClicked: panelRoot.showAnalytics = !panelRoot.showAnalytics
-            }
-            ActionButton {
-                text: "Delete"; variant: "danger"
-                onClicked: deleteDeckConfirm.open()
+
+            // Mobile action bar — full-width row so buttons never overflow.
+            RowLayout {
+                visible: Platform.isMobile
+                Layout.fillWidth: true
+                spacing: 8
+                ActionButton {
+                    Layout.fillWidth: true
+                    text: "▶ Review"; variant: "success"
+                    onClicked: {
+                        appVM.reviewVM.startSession(appVM.deckVM.selectedDeckId)
+                        if (panelRoot.reviewLoaderRef) panelRoot.reviewLoaderRef.active = true
+                    }
+                }
+                ActionButton {
+                    Layout.fillWidth: true
+                    text: panelRoot.showAnalytics ? "Hide" : "Analytics"
+                    onClicked: panelRoot.showAnalytics = !panelRoot.showAnalytics
+                }
+                ActionButton {
+                    Layout.fillWidth: true
+                    text: "Delete"; variant: "danger"
+                    onClicked: deleteDeckConfirm.open()
+                }
             }
         }
 
@@ -226,3 +262,4 @@ Item {
         onConfirmed: appVM.deckVM.deleteDeck(appVM.deckVM.selectedDeckId)
     }
 }
+

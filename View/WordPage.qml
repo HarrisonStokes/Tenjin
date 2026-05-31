@@ -49,43 +49,77 @@ Item {
                 anchors { fill: parent; margins: Platform.pagePadding }
                 spacing: 16
 
-            // Header row
-            RowLayout {
+            // Header row — stacks vertically on mobile when in edit mode
+            // so Save / Cancel / Delete Word never overflow the screen.
+            ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 12
-                Text {
-                    text: appVM.wordVM.selectedWord
-                    color: Platform.textPrimary
-                    font.pixelSize: Platform.fontTitle
-                    font.bold: true
-                    Layout.fillWidth: true
-                    elide: Text.ElideRight
-                }
+                spacing: 6
 
-                // Edit / Action controls
-                Row {
-                    spacing: 8
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Text {
+                        text: appVM.wordVM.selectedWord
+                        color: Platform.textPrimary
+                        font.pixelSize: Platform.fontTitle
+                        font.bold: true
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+
+                    // Edit button — only shown when NOT in edit mode.
                     ActionButton {
                         visible: !appVM.wordVM.editMode
                         text: "Edit"
                         variant: "neutral"
                         onClicked: appVM.wordVM.beginEdit()
                     }
+
+                    // On desktop, keep Save/Cancel/Delete in the same row as
+                    // the word title. On mobile they move to the row below.
+                    Row {
+                        visible: appVM.wordVM.editMode && !Platform.isMobile
+                        spacing: 8
+                        ActionButton {
+                            text: "Save"
+                            variant: "success"
+                            onClicked: appVM.wordVM.saveEdit()
+                        }
+                        ActionButton {
+                            text: "Cancel"
+                            variant: "neutral"
+                            onClicked: appVM.wordVM.cancelEdit()
+                        }
+                        ActionButton {
+                            text: "Delete Word"
+                            variant: "danger"
+                            onClicked: deleteWordConfirm.open()
+                        }
+                    }
+                }
+
+                // Mobile-only edit action bar — full width so buttons never clip.
+                RowLayout {
+                    visible: appVM.wordVM.editMode && Platform.isMobile
+                    Layout.fillWidth: true
+                    spacing: 8
+
                     ActionButton {
-                        visible: appVM.wordVM.editMode
+                        Layout.fillWidth: true
                         text: "Save"
                         variant: "success"
                         onClicked: appVM.wordVM.saveEdit()
                     }
                     ActionButton {
-                        visible: appVM.wordVM.editMode
+                        Layout.fillWidth: true
                         text: "Cancel"
                         variant: "neutral"
                         onClicked: appVM.wordVM.cancelEdit()
                     }
                     ActionButton {
-                        visible: appVM.wordVM.editMode
-                        text: "Delete Word"
+                        Layout.fillWidth: true
+                        text: "Delete"
                         variant: "danger"
                         onClicked: deleteWordConfirm.open()
                     }
@@ -256,10 +290,11 @@ Item {
             }
 
             // ── Add content buttons ──────────────────────────────
-            RowLayout {
+            // Flow wraps onto a second line on narrow (phone) screens.
+            Flow {
                 Layout.fillWidth: true
                 visible: appVM.wordVM.editMode
-                spacing: 12
+                spacing: 8
 
                 Repeater {
                     model: [
@@ -294,7 +329,6 @@ Item {
                         }
                     }
                 }
-                Item { Layout.fillWidth: true }
             }
         }
         }
@@ -306,4 +340,5 @@ Item {
         onConfirmed: appVM.wordVM.deleteWord(appVM.wordVM.selectedWordId)
     }
 }
+
 

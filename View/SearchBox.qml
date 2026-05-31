@@ -11,8 +11,12 @@ import TenjinView
 Item {
     id: root
     implicitHeight: Platform.touchTarget
-    Layout.preferredWidth: Math.min(260, parentWidth * 0.32)
-    Layout.minimumWidth: 140
+    // On mobile the parent sets Layout.fillWidth=true so the search bar
+    // expands to use all the remaining header space naturally.
+    // On desktop keep the fixed cap so it doesn't blow up on wide windows.
+    Layout.preferredWidth: Platform.isMobile ? -1 : Math.min(260, parentWidth * 0.32)
+    Layout.fillWidth: Platform.isMobile
+    Layout.minimumWidth: 120
     Layout.preferredHeight: Platform.touchTarget
 
     // Provided by parent so width can scale with the window.
@@ -202,4 +206,5 @@ Item {
         }
     }
 }
+
 
